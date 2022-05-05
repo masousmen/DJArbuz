@@ -1,5 +1,5 @@
 import discord
-from discord.utils import get
+from requests import get
 from discord.ext import commands
 import logging
 import random
@@ -50,46 +50,50 @@ class DJ_func(commands.Cog):
         num = random.randint(int(min_int), int(max_int))
         await ctx.send(num)
 
+    @commands.command(name="join")
+    async def joi(self, ctx):
+        if ctx.author.voice is None:
+            await ctx.send("Вы должны находится в голосовом канале")
+        channel = ctx.author.voice.channel
+        vc = ctx.voice_client
+        if vc is None:
+            await channel.connect()
+        else:
+            await vc.move_to(channel)
+
     @commands.command(name="p")
-    async def play(self, ctx, query):
-        global voice
-        channel = ctx.message.author.voice.channel
-        voice = get(self.bot.voice_clients, guild=ctx.guild)
-        if voice and voice.is_connected():
-            await voice.move_to(channel)
+    async def play(self, ctx, *query):
+        global vc
+        query = " ".join(query)
+        ffmpeg_format = {
+            "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+            "options": "-vn"}
+        ydl_format = {'format': 'worstaudio/best',
+                      'noplaylist': 'True', 'simulate': 'True', 'preferredquality': '192',
+                      'preferredcodec': 'mp3', 'key': 'FFmpegExtractAudio'}
+        if ctx.author.voice is None:
+            await ctx.send("Вы должны находится в голосовом канале")
+        channel = ctx.author.voice.channel
+        vc = ctx.voice_client
+        if vc is None:
+            await channel.connect()
         else:
-            await channel.connect(reconnect=True, timeout=300)
+            await vc.move_to(channel)
+        vc = ctx.voice_client
         await ctx.send("YES")
-
-        with YoutubeDL({'outtmpl': '%(id)s.%(ext)s'}) as ydl:
-            result = ydl.extract_info(
-                query,
-                download=False  # We just want to extract the info
-            )
-
-        if 'entries' in result:
-            # Can be a playlist or a list of videos
-            info = result['entries'][0]
-        else:
-            # Just a video
-            info = result
-
-        print(info)
-        video_url = info['url']
-        print(video_url)
-        await ctx.send(URL)
-        voice.play(discord.FFmpegPCMAudio(source=URL, executable="ffmpeg.exe"),
-                   **{'format': 'worstaudio/best',
-                      'noplaylist': 'True', 'simulate': 'True', 'preferredquality': '192', 'preferredcodec': 'mp3',
-                      'key': 'FFmpegExtractAudio'})
-
-        while voice.is_playing():
-            await asyncio.sleep(1)
-        if not voice.is_paused():
-            await voice.disconnect()
+        with YoutubeDL(ydl_format) as ydl:
+            try:
+                get(query)
+            except:
+                URL = ydl.extract_info(f"ytsearch:{query}", download=False)['entries'][0]
+            else:
+                URL = ydl.extract_info(query, download=False)
+        print(URL)
+        URL = URL['formats'][0]['url']
+        vc.play(discord.FFmpegPCMAudio(source=URL, **ffmpeg_format))
 
 
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
 bot.add_cog(DJ_func(bot))
 bot.run(TOKEN)
 
