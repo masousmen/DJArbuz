@@ -44,6 +44,7 @@ class DJ_func(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
+        self.vc = None
 
     @commands.command(name='roll')
     async def my_randint(self, ctx, min_int, max_int):
@@ -55,15 +56,18 @@ class DJ_func(commands.Cog):
         if ctx.author.voice is None:
             await ctx.send("Вы должны находится в голосовом канале")
         channel = ctx.author.voice.channel
-        vc = ctx.voice_client
-        if vc is None:
+        self.vc = ctx.voice_client
+        if self.vc is None:
             await channel.connect()
         else:
-            await vc.move_to(channel)
+            await self.vc.move_to(channel)
 
     @commands.command(name="p")
     async def play(self, ctx, *query):
         global vc
+        if vc is not None and vc.is_playing:
+            await ctx.send("Бот уже запущен. Остановить: `!stop`")
+            return
         query = " ".join(query)
         ffmpeg_format = {
             "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
@@ -90,7 +94,15 @@ class DJ_func(commands.Cog):
                 URL = ydl.extract_info(query, download=False)
         print(URL)
         URL = URL['formats'][0]['url']
+        await ctx.send(URL)
         vc.play(discord.FFmpegPCMAudio(source=URL, **ffmpeg_format))
+
+    @commands.command(name="stop")
+    async def stop(self, ctx):
+        if vc.is_playing:
+            vc.stop
+        else:
+            await ctx.send("Бот и так отдыхает")
 
 
 bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
