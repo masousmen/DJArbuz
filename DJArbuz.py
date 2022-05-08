@@ -44,14 +44,34 @@ class DJ_func(commands.Cog):
 
     def __init__(self, bot):
         self.bot = bot
-        self.vc = None
+        self.playlist = []
+        self.ffmpeg_format = {
+            "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
+            "options": "-vn"}
+        self.ydl_format = {'format': 'worstaudio/best',
+                           'noplaylist': 'True', 'simulate': 'True', 'preferredquality': '192',
+                           'preferredcodec': 'mp3', 'key': 'FFmpegExtractAudio'}
+        global vc
+
+    def start_playing(self, ctx, query):
+        print("YES")
+        global vc
+        with YoutubeDL(self.ydl_format) as ydl:
+            try:
+                get(query)
+            except:
+                URL = ydl.extract_info(f"ytsearch:{query}", download=False)['entries'][0]
+            else:
+                URL = ydl.extract_info(query, download=False)
+        print(URL)
+        URL = URL['formats'][0]['url']
+        vc.play(discord.FFmpegPCMAudio(source=URL, **self.ffmpeg_format))
 
     @commands.command(name='roll')
     async def my_randint(self, ctx, min_int, max_int):
         num = random.randint(int(min_int), int(max_int))
         await ctx.send(num)
 
-    @commands.command(name="join")
     async def joi(self, ctx):
         if ctx.author.voice is None:
             await ctx.send("Вы должны находится в голосовом канале")
@@ -65,16 +85,11 @@ class DJ_func(commands.Cog):
     @commands.command(name="p")
     async def play(self, ctx, *query):
         global vc
-        if vc is not None and vc.is_playing:
-            await ctx.send("Бот уже запущен. Остановить: `!stop`")
-            return
+        vc = ctx.voice_client
+        if not (vc is None) and vc.is_playing:
+            vc.stop()
         query = " ".join(query)
-        ffmpeg_format = {
-            "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
-            "options": "-vn"}
-        ydl_format = {'format': 'worstaudio/best',
-                      'noplaylist': 'True', 'simulate': 'True', 'preferredquality': '192',
-                      'preferredcodec': 'mp3', 'key': 'FFmpegExtractAudio'}
+
         if ctx.author.voice is None:
             await ctx.send("Вы должны находится в голосовом канале")
         channel = ctx.author.voice.channel
@@ -84,23 +99,12 @@ class DJ_func(commands.Cog):
         else:
             await vc.move_to(channel)
         vc = ctx.voice_client
-        await ctx.send("YES")
-        with YoutubeDL(ydl_format) as ydl:
-            try:
-                get(query)
-            except:
-                URL = ydl.extract_info(f"ytsearch:{query}", download=False)['entries'][0]
-            else:
-                URL = ydl.extract_info(query, download=False)
-        print(URL)
-        URL = URL['formats'][0]['url']
-        await ctx.send(URL)
-        vc.play(discord.FFmpegPCMAudio(source=URL, **ffmpeg_format))
+        self.start_playing(ctx, query)
 
     @commands.command(name="stop")
     async def stop(self, ctx):
-        if vc.is_playing:
-            vc.stop
+        if vc.is_playing():
+            vc.stop()
         else:
             await ctx.send("Бот и так отдыхает")
 
