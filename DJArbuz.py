@@ -14,7 +14,7 @@ logger.addHandler(handler)
 intents = discord.Intents.default()
 intents.members = True
 
-TOKEN = "OTcwOTYwNzQ0NTY2ODkwNTQ2.YnDjqQ.G09oxVgdM_ofZW9vNv_bAy8erII"
+TOKEN = "TOKEN"
 
 
 class YLBotClient(discord.Client):
