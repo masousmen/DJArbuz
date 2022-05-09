@@ -8,6 +8,7 @@ from collections import deque
 import asyncio
 
 
+
 class YLBotClient(discord.Client):
     async def on_ready(self):
         print(f'{self.user} has connected to Discord!')
@@ -43,26 +44,35 @@ class DJ_func(commands.Cog):
         global vc
         self.playlist = deque()
         self.cnt = 0
+        vc = None
 
     @commands.command(name='roll')
     async def my_randint(self, ctx, min_int, max_int):
         num = random.randint(int(min_int), int(max_int))
         await ctx.send(num)
 
-    async def start_playing(self, ctx, query):
+    async def start_playing(self, ctx):
         global vc
-        await ctx.send(f"**🎵 Searching 🔎 **`{query}`")
-        with YoutubeDL(self.ydl_format) as ydl:
+        while self.playlist:
+            query = self.playlist[0]
+            await ctx.send(f"**🎵 Searching 🔎 **`{query}`")
+            with YoutubeDL(self.ydl_format) as ydl:
+                try:
+                    get(query)
+                except:
+                    URL = ydl.extract_info(f"ytsearch:{query}", download=False)['entries'][0]
+                else:
+                    URL = ydl.extract_info(query, download=False)
+            print(URL)
+            duration = URL['duration']
+            await ctx.send(f"**Playing 🎶 **`{URL['title']}`")
+            URL = URL['formats'][0]['url']
             try:
-                get(query)
+                vc.play(discord.FFmpegPCMAudio(source=URL, **self.ffmpeg_format))
+                await asyncio.sleep(duration)
             except:
-                URL = ydl.extract_info(f"ytsearch:{query}", download=False)['entries'][0]
-            else:
-                URL = ydl.extract_info(query, download=False)
-        print(URL)
-        await ctx.send(f"**Playing 🎶 **`{URL['title']}`")
-        URL = URL['formats'][0]['url']
-        vc.play(discord.FFmpegPCMAudio(source=URL, **self.ffmpeg_format))
+                pass
+            self.playlist.popleft()
 
     @commands.command(name="join")
     async def joi(self, ctx):
@@ -70,23 +80,23 @@ class DJ_func(commands.Cog):
         if ctx.author.voice is None:
             await ctx.send("Вы должны находится в голосовом канале")
         self.channel = ctx.author.voice.channel
-        vc = ctx.voice_client
         if vc is None:
-            await self.channel.connect()
+            vc = await self.channel.connect()
         else:
-            await vc.move_to(self.channel)
+            vc = await vc.move_to(self.channel)
         await ctx.send(f":thumbsup: **Joined** {self.channel}")
 
     @commands.command(name="p")
     async def play(self, ctx, *query):
         global vc
-        vc = ctx.voice_client
         query = " ".join(query)
         if vc is None:
             await self.joi(ctx)
-        vc = ctx.voice_client
-        self.playlist.append(query)
-        await self.start_playing(ctx, self.playlist.popleft())
+        if not self.playlist:
+            self.playlist.append(query)
+            await self.start_playing(ctx)
+        else:
+            self.playlist.append(query)
 
     @commands.command(name="stop")
     async def stop(self, ctx):
@@ -118,7 +128,7 @@ class DJ_func(commands.Cog):
 
     @commands.command(name="ds")
     async def disconnect(self, ctx):
-        vc = ctx.voice_client
+        global vc
         await vc.disconnect()
 
 
@@ -131,7 +141,7 @@ def main():
     intents = discord.Intents.default()
     intents.members = True
     with open('token.txt', 'r') as file:
-         TOKEN = file.readlines()[0]
+        TOKEN = file.readlines()[0]
 
     bot = commands.Bot(command_prefix='!', intents=discord.Intents.all())
     bot.add_cog(DJ_func(bot))
