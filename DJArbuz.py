@@ -6,7 +6,7 @@ import random
 from youtube_dl import YoutubeDL
 from collections import deque
 import asyncio
-
+import sqlite3
 
 
 class YLBotClient(discord.Client):
@@ -35,6 +35,7 @@ class YLBotClient(discord.Client):
 class DJ_func(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.cor = sqlite3.connect("DJArbuz_data.db").cursor()
         self.ffmpeg_format = {
             "before_options": "-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5",
             "options": "-vn"}
@@ -66,12 +67,12 @@ class DJ_func(commands.Cog):
             print(URL)
             duration = URL['duration']
             await ctx.send(f"**Playing 🎶 **`{URL['title']}`")
+            self.cor.execute(f"""INSERT INTO history (sever, name) VALUES ('{ctx.channel}', '{URL["title"]}')""")
             URL = URL['formats'][0]['url']
-            try:
-                vc.play(discord.FFmpegPCMAudio(source=URL, **self.ffmpeg_format))
-                await asyncio.sleep(duration)
-            except:
-                pass
+            vc.play(discord.FFmpegPCMAudio(source=URL, **self.ffmpeg_format))
+
+            await asyncio.sleep(duration)
+
             self.playlist.popleft()
 
     @commands.command(name="join")
@@ -80,6 +81,7 @@ class DJ_func(commands.Cog):
         if ctx.author.voice is None:
             await ctx.send("Вы должны находится в голосовом канале")
         self.channel = ctx.author.voice.channel
+        vc = ctx.voice_client
         if vc is None:
             vc = await self.channel.connect()
         else:
@@ -97,6 +99,7 @@ class DJ_func(commands.Cog):
             await self.start_playing(ctx)
         else:
             self.playlist.append(query)
+            await ctx.send(f"**Ваш запрос в очереди. Осталось: **{len(self.playlist) - 1}")
 
     @commands.command(name="stop")
     async def stop(self, ctx):
@@ -104,6 +107,7 @@ class DJ_func(commands.Cog):
         if vc.is_playing():
             if "DJ" in ctx.author.roles:
                 vc.stop()
+                self.playlist = deque()
             else:
                 await ctx.send("У вас нет для этого необходимой роли")
         else:
@@ -130,6 +134,15 @@ class DJ_func(commands.Cog):
     async def disconnect(self, ctx):
         global vc
         await vc.disconnect()
+
+    @commands.command(name="history")
+    async def history(self, ctx):
+        lst = self.cor.execute(f"""SELECT name FROM history WHERE sever='{ctx.channel}'""")
+        ans = ""
+        for i in lst:
+            ans += i
+            ans += "\n"
+        await ctx.send("` " + ans + " `")
 
 
 def main():
